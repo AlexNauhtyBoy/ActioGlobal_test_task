@@ -1,0 +1,22 @@
+Note: I'm not a hands-on DevOps engineer, but I've led a DevOps team, so I'm reviewing this the way I'd review a pipeline before approving it.
+
+What I'd flag before approving:
+
+1. There's a credential in the repository. The value looks like an AWS access key ID for a long-lived IAM user, sitting in the secret key variable, so the example is probably simplified. 
+Either way, anything committed stays in the git history and has to be treated as exposed. Deleting it from the file doesn't help; the key has to be revoked and replaced.
+
+2. The pipeline doesn't build, test or version anything. --force-new-deployment just restarts the service with whatever it already points to, so we can't tell what code is running in production or roll back to a known good version.
+
+3. "Deployed" says nothing about the result. The command returns as soon as AWS accepts the request, before the new tasks are running and healthy. Nothing waits for stability, checks health, rolls back or notifies anyone, so a deploy that fails at night goes unnoticed. The fragment also has no approval step, branch restriction or protected environment.
+
+What it needs to run safely unattended:
+  - Build and test steps, with the image tagged by commit hash instead of a mutable tag. Then every deploy is a known version and we can roll back.
+  - Short-lived credentials (OIDC between the CI and AWS, with a minimal-permission role) instead of a stored key.
+  - A wait for the service to become stable, a smoke test against the new version, and automatic rollback on failure (ECS deployment circuit breaker).
+  - Manual approval and a protected production environment, limited to the main branch.
+  - A notification to the team on success and failure.
+  ▎
+  I'd fix the credential first. A broken deploy is visible and we can fix it. A leaked key is silent and can't be undone: anyone who ever had access to the repository can act as this IAM user, and we'd only find out from an incident or a
+  bill. So I'd revoke it today, check CloudTrail for unusual activity, and move to short-lived credentials so no long-lived secrets are stored anywhere.
+  ▎
+  Second, I'd add the immutable, versioned image and the stability wait with automatic rollback. Those two changes are what make unattended deploys safe.

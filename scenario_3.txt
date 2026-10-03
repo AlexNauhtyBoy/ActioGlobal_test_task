@@ -1,0 +1,20 @@
+Diagnosis
+
+ A hook is deterministic: given the same input, it always behaves the same way. So I'd first rule out the cheap explanation, which takes a few minutes. I'd compare the effective configuration on both developers' machines, for example to
+ see whether one of them has an outdated version of the hook or has disabled it locally. If the configurations match, the hook isn't the cause, and the difference has to be in its input.
+
+ Next I'd look at which skills and rules describe branch naming. If there are several, the agent may follow the first one it finds or choose based on its current context, so two engineers can end up with differently named branches for the
+ same kind of task. The hook enforces only one convention, so it blocks one name and lets the other through. That also explains the second symptom: the conflicting rules cause the "random" blocking. So it's not random.
+
+ Failure mode
+
+ There's no single source of truth for the rules. They live locally, per project or per module, with no priorities and no owners. It's the same kind of problem as a local config that differs from the server config, where the system's
+ behavior depends on which one gets applied. On top of that, a hard constraint (branch naming) is written as a natural-language rule that the agent can interpret in different ways, when it should be a check with only one possible result.
+
+ What I'd change
+
+ - Manage rules and hooks as code: a separate repository/folder for development configs, split by project where needed, with shared rules in a common part. Every rule has a maintainer, and changes go through PRs. Projects should pin a specific
+ version of this config. Otherwise each project drifts again depending on when it last pulled.
+ - Enforce hard constraints like branch naming in deterministic hooks or CI, and use rules only for guidance. Define the convention once and have both the rule and the hook use it.
+ - Add an automated check that fails when two rules contradict each other, and set an explicit priority between sources.
+ - Make the hook say why it blocked a commit, so the engineer and the agent can fix it without guessing.
